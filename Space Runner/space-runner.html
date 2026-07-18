@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Atlas Star Runner - CTA Booth Game</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: #000;
+    font-family: Arial, sans-serif;
+    color: white;
+  }
+
+  canvas {
+    display: block;
+    margin: 0 auto;
+    background: radial-gradient(circle at center, #140033, #03000d);
+  }
+
+  #overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    z-index: 10;
+  }
+
+  .panel {
+    background: rgba(8, 0, 30, 0.82);
+    border: 2px solid #9f7aea;
+    border-radius: 18px;
+    padding: 24px 36px;
+    box-shadow: 0 0 35px rgba(159, 122, 234, 0.7);
+    max-width: 760px;
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    color: #f6d365;
+    font-size: 42px;
+  }
+
+  .cta {
+    color: #7dd3fc;
+    font-weight: bold;
+  }
+
+  .small {
+    font-size: 16px;
+    opacity: 0.92;
+  }
+
+  .crawl-wrap {
+    perspective: 420px;
+    width: min(900px, 90vw);
+    height: min(70vh, 680px);
+    overflow: hidden;
+    position: relative;
+    margin: 0 auto;
+  }
+
+  .crawl {
+    position: absolute;
+    width: 100%;
+    left: 0;
+    bottom: -60%;
+    transform-origin: 50% 100%;
+    transform: rotateX(25deg);
+    color: #f6d365;
+    font-weight: bold;
+    font-size: clamp(24px, 3vw, 44px);
+    line-height: 1.55;
+    letter-spacing: 1px;
+    text-align: center;
+    animation: crawlUp 22s linear forwards;
+    text-shadow: 0 0 8px rgba(246, 211, 101, 0.35);
+  }
+
+  @keyframes crawlUp {
+    0% { bottom: -60%; }
+    100% { bottom: 120%; }
+  }
+
+  .skip {
+    margin-top: 18px;
+    color: #c4b5fd;
+    font-size: 15px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="overlay">
+  <div class="panel" id="startPanel">
+    <div class="crawl-wrap">
+      <div class="crawl">
+        <div style="font-size:0.8em; margin-bottom:22px;">EPISODE CTA</div>
+        <div style="font-size:1.2em; margin-bottom:30px;">ATLAS STAR RUNNER</div>
+        <div>
+          The Cornerstone Tech Academy fleet is under attack.<br><br>
+          Atlas has launched in a custom star fighter to defend the learning lanes,
+          protect the academy, and push back the dark battle stations.<br><br>
+          Dodge enemy fire. Blast the invading fleet. Survive the waves.
+          When giant battle stations appear, take them down before they destroy the mission.<br><br>
+          Students, your training begins now.
+        </div>
+      </div>
+    </div>
+    <p class="small" style="margin-top:18px;">
+      Move: Arrow Keys or WASD<br>
+      Fire: Space<br>
+      Start / Skip Crawl: Enter
+    </p>
+    <div class="skip">Press Enter any time to begin</div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CHANGEABLE CONSTANTS / SETTINGS
+   ========================================================= */
+
+const CONFIG = {
+  STARTING_LIVES: 3,
+  STARTING_LEVEL: 1,
+  FINAL_LEVEL: 3,
+  BOSS_EVERY_N_LEVELS: 3,
+
+  PLAYER_SPEED: 7,
+  PLAYER_WIDTH: 76,
+  PLAYER_HEIGHT: 76,
+  PLAYER_FIRE_COOLDOWN: 12,
+  PLAYER_BULLET_SPEED: 12,
+  PLAYER_BULLET_WIDTH: 5,
+  PLAYER_BULLET_HEIGHT: 18,
+  PLAYER_START_Y_OFFSET: 110,
+
+  ENEMY_COLUMNS: 8,
+  ENEMY_BASE_ROWS: 3,
+  ENEMY_MAX_ROWS: 6,
+  ENEMY_ROW_SPACING: 60,
+  ENEMY_COLUMN_SPACING: 90,
+  ENEMY_START_X: 120,
+  ENEMY_START_Y: 80,
+  ENEMY_WOBBLE_X: 45,
+  ENEMY_WOBBLE_Y: 12,
+  ENEMY_PHASE_SPEED: 0.04,
+  ENEMY_FRAME_SWAY_SPEED: 0.02,
+  ENEMY_VERTICAL_SWAY_SPEED: 0.012,
+  ENEMY_BASE_FIRE_CHANCE: 0.0015,
+  ENEMY_FIRE_CHANCE_PER_LEVEL: 0.0004,
+  ENEMY_BASE_HP: 1,
+  ENEMY_HP_PER_3_LEVELS: 1,
+
+  ENEMY_BULLET_SPEED: 7,
+  ENEMY_BULLET_WIDTH: 6,
+  ENEMY_BULLET_HEIGHT: 15,
+
+  BOSS_SIZE: 130,
+  BOSS_ENTRY_SPEED: 1.2,
+  BOSS_BASE_HP: 18,
+  BOSS_HP_PER_LEVEL: 4,
+  BOSS_FIRE_CHANCE: 0.035,
+  BOSS_TARGET_Y: 65,
+
+  STAR_COUNT: 160,
+  STAR_MIN_SIZE: 0.5,
+  STAR_MAX_SIZE: 2.5,
+  STAR_MIN_SPEED: 1,
+  STAR_MAX_SPEED: 4,
+  SCROLL_LINE_COUNT: 8,
+  SCROLL_LINE_SPEED: 4,
+  SCROLL_LINE_SPACING: 130,
+
+  EXPLOSION_START_RADIUS: 5,
+  EXPLOSION_GROWTH: 2.5,
+  EXPLOSION_LIFE: 24,
+
+  FIREWORK_COUNT: 22,
+  FIREWORK_PARTICLES_MIN: 18,
+  FIREWORK_PARTICLES_MAX: 32,
+  FIREWORK_SPEED_MIN: 2,
+  FIREWORK_SPEED_MAX: 6,
+  FIREWORK_LIFE: 55,
+
+  SCORE_PER_ENEMY: 100,
+  SCORE_PER_BOSS_HIT: 15,
+  SCORE_PER_BOSS_DESTROYED: 1500,
+
+  PLAYER_HIT_INVINCIBLE_FRAMES: 90,
+
+  COLORS: {
+    backgroundDark: "#050014",
+    playerBody: "#111827",
+    playerWing: "#7dd3fc",
+    playerFace: "#f6d365",
+    playerBeak: "#ff8a00",
+    playerHood: "#a855f7",
+    playerEngine: "#22c55e",
+
+    enemyBody: "#9ca3af",
+    enemyTrim: "#e5e7eb",
+    enemyDetail: "#4b5563",
+    enemyWindow: "#111827",
+    enemyLaser: "#22c55e",
+
+    bossBody: "#9ca3af",
+    bossTrim: "#e5e7eb",
+    bossDetail: "#4b5563",
+    bossWindow: "#111827",
+
+    playerBullet: "#ef4444",
+    enemyBullet: "#22c55e",
+    explosion: "#f6d365",
+
+    hudText: "#ffffff",
+    hudAccent: "#f6d365"
+  }
+};
+
+/* ========================================================= */
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const overlay = document.getElementById("overlay");
+const startPanel = document.getElementById("startPanel");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+
+let keys = {};
+let gameRunning = false;
+let gameOver = false;
+let gameWon = false;
+let score = 0;
+let lives = CONFIG.STARTING_LIVES;
+let level = CONFIG.STARTING_LEVEL;
+let frame = 0;
+
+const player = {
+  x: canvas.width / 2,
+  y: canvas.height - CONFIG.PLAYER_START_Y_OFFSET,
+  w: CONFIG.PLAYER_WIDTH,
+  h: CONFIG.PLAYER_HEIGHT,
+  speed: CONFIG.PLAYER_SPEED,
+  cooldown: 0,
+  invincible: 0
+};
+
+let bullets = [];
+let enemies = [];
+let enemyBullets = [];
+let stars = [];
+let explosions = [];
+let bosses = [];
+let fireworks = [];
+
+/* ========================================================= */
+
+function createStars() {
+  stars = [];
+  for (let i = 0; i < CONFIG.STAR_COUNT; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * (CONFIG.STAR_MAX_SIZE - CONFIG.STAR_MIN_SIZE) + CONFIG.STAR_MIN_SIZE,
+      speed: Math.random() * (CONFIG.STAR_MAX_SPEED - CONFIG.STAR_MIN_SPEED) + CONFIG.STAR_MIN_SPEED
+    });
+  }
+}
+createStars();
+
+/* ========================================================= */
+
+document.addEventListener("keydown", e => {
+  keys[e.key.toLowerCase()] = true;
+
+  if (e.key === "Enter") {
+    if (!gameRunning) startGame();
+  }
+
+  if (e.key === " ") {
+    e.preventDefault();
+  }
+});
+
+document.addEventListener("keyup", e => {
+  keys[e.key.toLowerCase()] = false;
+});
+
+/* ========================================================= */
+
+function startGame() {
+  gameRunning = true;
+  gameOver = false;
+  gameWon = false;
+  overlay.style.display = "none";
+
+  score = 0;
+  lives = CONFIG.STARTING_LIVES;
+  level = CONFIG.STARTING_LEVEL;
+  frame = 0;
+
+  bullets = [];
+  enemies = [];
+  enemyBullets = [];
+  bosses = [];
+  explosions = [];
+  fireworks = [];
+
+  player.x = canvas.width / 2;
+  player.y = canvas.height - CONFIG.PLAYER_START_Y_OFFSET;
+  player.cooldown = 0;
+  player.invincible = 0;
+
+  spawnWave();
+  loop();
+}
+
+/* ========================================================= */
+
+function spawnWave() {
+  enemies = [];
+
+  const rows = Math.min(CONFIG.ENEMY_BASE_ROWS + level, CONFIG.ENEMY_MAX_ROWS);
+  const cols = CONFIG.ENEMY_COLUMNS;
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const x = CONFIG.ENEMY_START_X + c * CONFIG.ENEMY_COLUMN_SPACING;
+      const y = CONFIG.ENEMY_START_Y + r * CONFIG.ENEMY_ROW_SPACING;
+
+      enemies.push({
+        x,
+        y,
+        baseX: x,
+        baseY: y,
+        w: 42,
+        h: 42,
+        hp: CONFIG.ENEMY_BASE_HP + Math.floor(level / 3) * CONFIG.ENEMY_HP_PER_3_LEVELS,
+        phase: Math.random() * 100
+      });
+    }
+  }
+
+  if (level % CONFIG.BOSS_EVERY_N_LEVELS === 0) {
+    const hp = CONFIG.BOSS_BASE_HP + level * CONFIG.BOSS_HP_PER_LEVEL;
+
+    bosses.push({
+      x: canvas.width / 2 - CONFIG.BOSS_SIZE / 2,
+      y: -CONFIG.BOSS_SIZE,
+      w: CONFIG.BOSS_SIZE,
+      h: CONFIG.BOSS_SIZE,
+      hp,
+      maxHp: hp,
+      speed: CONFIG.BOSS_ENTRY_SPEED
+    });
+  }
+}
+
+/* ========================================================= */
+
+function drawStars() {
+  ctx.fillStyle = CONFIG.COLORS.backgroundDark;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let s of stars) {
+    s.y += s.speed;
+
+    if (s.y > canvas.height) {
+      s.y = 0;
+      s.x = Math.random() * canvas.width;
+    }
+
+    ctx.fillStyle = "white";
+    ctx.globalAlpha = 0.45 + Math.random() * 0.4;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "rgba(125, 211, 252, 0.25)";
+  ctx.lineWidth = 2;
+
+  for (let i = 0; i < CONFIG.SCROLL_LINE_COUNT; i++) {
+    const y = (frame * CONFIG.SCROLL_LINE_SPEED + i * CONFIG.SCROLL_LINE_SPACING) % canvas.height;
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, y);
+    ctx.lineTo(canvas.width / 2 - 700, y + 260);
+    ctx.moveTo(canvas.width / 2, y);
+    ctx.lineTo(canvas.width / 2 + 700, y + 260);
+    ctx.stroke();
+  }
+}
+
+/* ========================================================= */
+
+function drawPlayer() {
+  ctx.save();
+  ctx.translate(player.x, player.y);
+
+  if (player.invincible > 0 && Math.floor(player.invincible / 6) % 2 === 0) {
+    ctx.globalAlpha = 0.35;
+  }
+
+  const px = 4;
+
+  function block(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(x) * px, Math.round(y) * px, w * px, h * px);
+  }
+
+  // Left wing
+  block(-9, -6, 1, 1, "#9ca3af");
+  block(-10, -5, 3, 10, "#111827");
+  block(-11, -4, 5, 8, "#111827");
+  block(-10, -3, 7, 6, "#111827");
+  block(-9, -2, 9, 4, "#111827");
+
+  block(-10, -3, 1, 6, "#374151");
+  block(-7, -3, 1, 6, "#374151");
+  block(-4, -3, 1, 6, "#374151");
+  block(-10, -1, 7, 1, "#4b5563");
+  block(-10, 1, 7, 1, "#4b5563");
+
+  // Right wing
+  block(8, -6, 1, 1, "#9ca3af");
+  block(7, -5, 3, 10, "#111827");
+  block(6, -4, 5, 8, "#111827");
+  block(3, -3, 7, 6, "#111827");
+  block(0, -2, 9, 4, "#111827");
+
+  block(9, -3, 1, 6, "#374151");
+  block(6, -3, 1, 6, "#374151");
+  block(3, -3, 1, 6, "#374151");
+  block(3, -1, 7, 1, "#4b5563");
+  block(3, 1, 7, 1, "#4b5563");
+
+  // Connectors
+  block(-3, -1, 2, 2, "#9ca3af");
+  block(1, -1, 2, 2, "#9ca3af");
+
+  // Cockpit
+  block(-3, -3, 6, 6, "#9ca3af");
+  block(-2, -2, 4, 4, "#1f2937");
+  block(-1, -1, 2, 2, "#111827");
+
+  // Window highlight
+  block(-1, -2, 2, 1, "#7dd3fc");
+  block(-2, -1, 1, 2, "#7dd3fc");
+  block(1, -1, 1, 2, "#7dd3fc");
+  block(-1, 1, 2, 1, "#7dd3fc");
+
+  // Outline accents
+  block(-3, -4, 6, 1, "#d1d5db");
+  block(-3, 3, 6, 1, "#6b7280");
+  block(-4, -3, 1, 6, "#d1d5db");
+  block(3, -3, 1, 6, "#6b7280");
+
+  // Engine glow
+  if (frame % 12 < 6) {
+    block(-1, 3, 2, 1, "#ef4444");
+    block(-1, 4, 2, 1, "#f97316");
+  } else {
+    block(-1, 3, 2, 1, "#f87171");
+    block(-1, 4, 2, 1, "#f59e0b");
+  }
+
+  ctx.restore();
+}
+
+/* =========================================================
+   MINI BATTLE STATION ENEMIES
+   ========================================================= */
+
+function drawEnemy(e) {
+  ctx.save();
+  ctx.translate(e.x, e.y);
+
+  ctx.fillStyle = CONFIG.COLORS.enemyBody;
+  ctx.strokeStyle = CONFIG.COLORS.enemyTrim;
+  ctx.lineWidth = 2;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, 19, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = CONFIG.COLORS.enemyDetail;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, 12, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = CONFIG.COLORS.enemyWindow;
+  ctx.beginPath();
+  ctx.arc(-7, -6, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = CONFIG.COLORS.enemyDetail;
+  for (let i = -10; i <= 10; i += 5) {
+    ctx.beginPath();
+    ctx.moveTo(-14, i);
+    ctx.lineTo(14, i);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = CONFIG.COLORS.enemyLaser;
+  ctx.fillRect(14, -2, 10, 4);
+
+  ctx.restore();
+}
+
+/* ========================================================= */
+
+function drawBoss(b) {
+  ctx.save();
+  ctx.translate(b.x + b.w / 2, b.y + b.h / 2);
+
+  ctx.fillStyle = CONFIG.COLORS.bossBody;
+  ctx.strokeStyle = CONFIG.COLORS.bossTrim;
+  ctx.lineWidth = 3;
+
+  ctx.beginPath();
+  ctx.arc(0, 0, b.w / 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.strokeStyle = CONFIG.COLORS.bossDetail;
+  ctx.beginPath();
+  ctx.arc(0, 0, b.w / 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = CONFIG.COLORS.bossWindow;
+  ctx.beginPath();
+  ctx.arc(-24, -18, 20, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = CONFIG.COLORS.bossWindow;
+  for (let i = 0; i < 10; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-b.w / 2, -45 + i * 10);
+    ctx.lineTo(b.w / 2, -45 + i * 10);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  ctx.fillStyle = "#ef4444";
+  ctx.fillRect(b.x, b.y - 16, b.w, 8);
+
+  ctx.fillStyle = "#22c55e";
+  ctx.fillRect(b.x, b.y - 16, b.w * (b.hp / b.maxHp), 8);
+}
+
+/* ========================================================= */
+
+function updatePlayer() {
+  if (keys["arrowleft"] || keys["a"]) player.x -= player.speed;
+  if (keys["arrowright"] || keys["d"]) player.x += player.speed;
+  if (keys["arrowup"] || keys["w"]) player.y -= player.speed;
+  if (keys["arrowdown"] || keys["s"]) player.y += player.speed;
+
+  player.x = Math.max(55, Math.min(canvas.width - 55, player.x));
+  player.y = Math.max(80, Math.min(canvas.height - 60, player.y));
+
+  if (player.cooldown > 0) player.cooldown--;
+  if (player.invincible > 0) player.invincible--;
+
+  if (keys[" "] && player.cooldown <= 0) {
+    bullets.push({
+      x: player.x - 26,
+      y: player.y - 18,
+      w: CONFIG.PLAYER_BULLET_WIDTH,
+      h: CONFIG.PLAYER_BULLET_HEIGHT
+    });
+
+    bullets.push({
+      x: player.x + 20,
+      y: player.y - 18,
+      w: CONFIG.PLAYER_BULLET_WIDTH,
+      h: CONFIG.PLAYER_BULLET_HEIGHT
+    });
+
+    player.cooldown = CONFIG.PLAYER_FIRE_COOLDOWN;
+  }
+}
+
+/* ========================================================= */
+
+function updateBullets() {
+  for (let b of bullets) b.y -= CONFIG.PLAYER_BULLET_SPEED;
+  bullets = bullets.filter(b => b.y > -30);
+
+  for (let b of enemyBullets) b.y += CONFIG.ENEMY_BULLET_SPEED;
+  enemyBullets = enemyBullets.filter(b => b.y < canvas.height + 30);
+}
+
+/* ========================================================= */
+
+function updateEnemies() {
+  for (let e of enemies) {
+    e.phase += CONFIG.ENEMY_PHASE_SPEED;
+    e.x = e.baseX + Math.sin(e.phase + frame * CONFIG.ENEMY_FRAME_SWAY_SPEED) * CONFIG.ENEMY_WOBBLE_X;
+    e.y = e.baseY + Math.sin(frame * CONFIG.ENEMY_VERTICAL_SWAY_SPEED + e.phase) * CONFIG.ENEMY_WOBBLE_Y;
+
+    if (Math.random() < CONFIG.ENEMY_BASE_FIRE_CHANCE + level * CONFIG.ENEMY_FIRE_CHANCE_PER_LEVEL) {
+      enemyBullets.push({
+        x: e.x,
+        y: e.y + 20,
+        w: CONFIG.ENEMY_BULLET_WIDTH,
+        h: CONFIG.ENEMY_BULLET_HEIGHT
+      });
+    }
+  }
+
+  for (let b of bosses) {
+    if (b.y < CONFIG.BOSS_TARGET_Y) {
+      b.y += b.speed;
+    }
+
+    if (Math.random() < CONFIG.BOSS_FIRE_CHANCE) {
+      enemyBullets.push({ x: b.x + b.w / 2, y: b.y + b.h, w: 8, h: 20 });
+      enemyBullets.push({ x: b.x + 30, y: b.y + b.h - 20, w: 8, h: 20 });
+      enemyBullets.push({ x: b.x + b.w - 30, y: b.y + b.h - 20, w: 8, h: 20 });
+    }
+  }
+}
+
+/* ========================================================= */
+
+function drawBullets() {
+  ctx.fillStyle = CONFIG.COLORS.playerBullet;
+  for (let b of bullets) {
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+  }
+
+  ctx.fillStyle = CONFIG.COLORS.enemyBullet;
+  for (let b of enemyBullets) {
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+  }
+}
+
+/* ========================================================= */
+
+function hit(a, b) {
+  return (
+    a.x < b.x + b.w &&
+    a.x + a.w > b.x &&
+    a.y < b.y + b.h &&
+    a.y + a.h > b.y
+  );
+}
+
+function addExplosion(x, y) {
+  explosions.push({
+    x,
+    y,
+    r: CONFIG.EXPLOSION_START_RADIUS,
+    life: CONFIG.EXPLOSION_LIFE
+  });
+}
+
+function addFireworkBurst(x, y) {
+  const colors = ["#ef4444", "#22c55e", "#38bdf8", "#f6d365", "#a855f7", "#ffffff"];
+  const count = Math.floor(
+    Math.random() * (CONFIG.FIREWORK_PARTICLES_MAX - CONFIG.FIREWORK_PARTICLES_MIN + 1)
+  ) + CONFIG.FIREWORK_PARTICLES_MIN;
+
+  for (let i = 0; i < count; i++) {
+    const angle = (Math.PI * 2 * i) / count + Math.random() * 0.35;
+    const speed = CONFIG.FIREWORK_SPEED_MIN + Math.random() * (CONFIG.FIREWORK_SPEED_MAX - CONFIG.FIREWORK_SPEED_MIN);
+
+    fireworks.push({
+      x,
+      y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: CONFIG.FIREWORK_LIFE,
+      maxLife: CONFIG.FIREWORK_LIFE,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      size: 2 + Math.random() * 2.5
+    });
+  }
+}
+
+function spawnVictoryFireworks() {
+  for (let i = 0; i < CONFIG.FIREWORK_COUNT; i++) {
+    const x = canvas.width * (0.15 + Math.random() * 0.7);
+    const y = canvas.height * (0.15 + Math.random() * 0.45);
+    addFireworkBurst(x, y);
+  }
+}
+
+function damagePlayer() {
+  if (player.invincible > 0) return;
+
+  lives--;
+  player.invincible = CONFIG.PLAYER_HIT_INVINCIBLE_FRAMES;
+  addExplosion(player.x, player.y);
+
+  if (lives <= 0) {
+    endGame();
+  }
+}
+
+/* ========================================================= */
+
+function updateCollisions() {
+  for (let bullet of bullets) {
+    for (let enemy of enemies) {
+      if (hit(bullet, {
+        x: enemy.x - enemy.w / 2,
+        y: enemy.y - enemy.h / 2,
+        w: enemy.w,
+        h: enemy.h
+      })) {
+        bullet.dead = true;
+        enemy.hp--;
+
+        if (enemy.hp <= 0) {
+          enemy.dead = true;
+          score += CONFIG.SCORE_PER_ENEMY;
+          addExplosion(enemy.x, enemy.y);
+        }
+      }
+    }
+
+    for (let boss of bosses) {
+      if (hit(bullet, boss)) {
+        bullet.dead = true;
+        boss.hp--;
+        score += CONFIG.SCORE_PER_BOSS_HIT;
+
+        if (boss.hp <= 0) {
+          boss.dead = true;
+          score += CONFIG.SCORE_PER_BOSS_DESTROYED;
+          addExplosion(boss.x + boss.w / 2, boss.y + boss.h / 2);
+        }
+      }
+    }
+  }
+
+  bullets = bullets.filter(b => !b.dead);
+  enemies = enemies.filter(e => !e.dead);
+  bosses = bosses.filter(b => !b.dead);
+
+  const playerBox = {
+    x: player.x - 30,
+    y: player.y - 22,
+    w: 60,
+    h: 44
+  };
+
+  for (let b of enemyBullets) {
+    if (hit(b, playerBox)) {
+      b.dead = true;
+      damagePlayer();
+    }
+  }
+
+  for (let enemy of enemies) {
+    const enemyBox = {
+      x: enemy.x - enemy.w / 2,
+      y: enemy.y - enemy.h / 2,
+      w: enemy.w,
+      h: enemy.h
+    };
+
+    if (hit(playerBox, enemyBox)) {
+      enemy.dead = true;
+      addExplosion(enemy.x, enemy.y);
+      damagePlayer();
+    }
+  }
+
+  for (let boss of bosses) {
+    if (hit(playerBox, boss)) {
+      damagePlayer();
+    }
+  }
+
+  enemyBullets = enemyBullets.filter(b => !b.dead);
+  enemies = enemies.filter(e => !e.dead);
+}
+
+/* ========================================================= */
+
+function updateExplosions() {
+  for (let ex of explosions) {
+    ex.r += CONFIG.EXPLOSION_GROWTH;
+    ex.life--;
+  }
+
+  explosions = explosions.filter(ex => ex.life > 0);
+}
+
+function drawExplosions() {
+  for (let ex of explosions) {
+    ctx.globalAlpha = ex.life / CONFIG.EXPLOSION_LIFE;
+    ctx.strokeStyle = CONFIG.COLORS.explosion;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(ex.x, ex.y, ex.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ========================================================= */
+
+function updateFireworks() {
+  for (let f of fireworks) {
+    f.x += f.vx;
+    f.y += f.vy;
+    f.vy += 0.04;
+    f.vx *= 0.995;
+    f.life--;
+  }
+
+  fireworks = fireworks.filter(f => f.life > 0);
+
+  if (gameWon && frame % 25 === 0) {
+    addFireworkBurst(
+      canvas.width * (0.2 + Math.random() * 0.6),
+      canvas.height * (0.15 + Math.random() * 0.35)
+    );
+  }
+}
+
+function drawFireworks() {
+  for (let f of fireworks) {
+    ctx.globalAlpha = f.life / f.maxLife;
+    ctx.fillStyle = f.color;
+    ctx.beginPath();
+    ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* ========================================================= */
+
+function drawHUD() {
+  ctx.fillStyle = CONFIG.COLORS.hudText;
+  ctx.font = "22px Arial";
+  ctx.fillText("Score: " + score, 25, 35);
+  ctx.fillText("Lives: " + lives, 25, 65);
+  ctx.fillText("Level: " + level, 25, 95);
+
+  ctx.fillStyle = CONFIG.COLORS.hudAccent;
+  ctx.font = "bold 24px Arial";
+  ctx.fillText("CTA Atlas Star Runner", canvas.width - 300, 38);
+}
+
+/* ========================================================= */
+
+function checkLevelClear() {
+  if (enemies.length === 0 && bosses.length === 0) {
+    if (level >= CONFIG.FINAL_LEVEL) {
+      winGame();
+      return;
+    }
+
+    level++;
+    spawnWave();
+  }
+}
+
+/* ========================================================= */
+
+function endGame() {
+  gameRunning = false;
+  gameOver = true;
+  overlay.style.display = "flex";
+  startPanel.innerHTML = `
+    <h1>Game Over</h1>
+    <div class="cta">Final Score: ${score}</div>
+    <p>Atlas was defeated.</p>
+    <p class="small">Press Enter to play again</p>
+  `;
+}
+
+function winGame() {
+  gameRunning = false;
+  gameWon = true;
+  overlay.style.display = "flex";
+  spawnVictoryFireworks();
+
+  startPanel.innerHTML = `
+    <h1 style="font-size:54px;">Victory!</h1>
+    <div class="cta" style="font-size:28px; margin-bottom:12px;">The Academy Fleet Is Safe</div>
+    <p style="font-size:20px; line-height:1.5; margin:10px 0 14px 0;">
+      Atlas destroyed the final battle station and completed the mission.
+    </p>
+    <p style="font-size:18px; color:#f6d365; margin:0 0 14px 0;">
+      Final Score: ${score}
+    </p>
+    <p class="small">Press Enter to launch again</p>
+  `;
+}
+
+/* ========================================================= */
+
+function loop() {
+  if (!gameRunning && !gameWon) return;
+
+  frame++;
+
+  drawStars();
+
+  if (gameRunning) {
+    updatePlayer();
+    updateBullets();
+    updateEnemies();
+    updateCollisions();
+    updateExplosions();
+
+    drawPlayer();
+
+    for (let e of enemies) drawEnemy(e);
+    for (let b of bosses) drawBoss(b);
+
+    drawBullets();
+    drawExplosions();
+    drawHUD();
+    checkLevelClear();
+  }
+
+  updateFireworks();
+  drawFireworks();
+
+  if (gameRunning || gameWon) {
+    requestAnimationFrame(loop);
+  }
+}
+
+/* ========================================================= */
+
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  createStars();
+
+  if (!gameRunning) {
+    player.x = canvas.width / 2;
+    player.y = canvas.height - CONFIG.PLAYER_START_Y_OFFSET;
+  }
+});
+</script>
+
+</body>
+</html>

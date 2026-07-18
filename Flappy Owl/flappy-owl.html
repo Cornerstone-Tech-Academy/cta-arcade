@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Owl</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            border: 3px solid #333;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+        }
+
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+            z-index: 10;
+            text-shadow: 2px 2px 4px rgba(255, 255, 255, 0.7);
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+            min-width: 280px;
+        }
+
+        #gameOver h1 {
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        #gameOver p {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+
+        #gameOver button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #gameOver button:hover {
+            background: #764ba2;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #333;
+            text-align: center;
+            font-size: 14px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 10px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="score">Score: 0</div>
+        <div id="gameOver">
+            <h1>Game Over!</h1>
+            <p>Final Score: <span id="finalScore">0</span></p>
+            <button onclick="location.reload()">Play Again</button>
+        </div>
+        <div id="instructions">Click or Tap to Flap!</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Set canvas size
+        canvas.width = 400;
+        canvas.height = 600;
+
+        // Game variables
+        let score = 0;
+        let gameRunning = true;
+
+        // Owl object
+        const owl = {
+            x: 50,
+            y: 150,
+            width: 30,
+            height: 30,
+            velocity: 0,
+            flap: function() {
+                this.velocity = -12;
+            },
+            update: function() {
+                // Apply gravity
+                this.velocity += .5 ;
+                this.y += this.velocity;
+
+                // Boundary check
+                if (this.y + this.height >= canvas.height) {
+                    this.y = canvas.height - this.height;
+                    endGame();
+                }
+                if (this.y <= 0) {
+                    this.y = 0;
+                }
+            },
+            draw: function() {
+                // Draw owl body
+                ctx.fillStyle = '#8C40DE';
+                ctx.beginPath();
+                ctx.ellipse(this.x + this.width / 2, this.y + this.height / 2, this.width / 2, this.height / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw owl eyes
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath();
+                ctx.arc(this.x + 10, this.y + 10, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(this.x + 20, this.y + 10, 5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw owl pupils
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(this.x + 10, this.y + 10, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(this.x + 20, this.y + 10, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw owl beak
+                ctx.fillStyle = '#FFD700';
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.lineTo(this.x + this.width / 2 + 8, this.y + this.height / 2 - 2);
+                ctx.lineTo(this.x + this.width / 2 + 8, this.y + this.height / 2 + 2);
+                ctx.closePath();
+                ctx.fill();
+
+                // Draw owl wings
+                ctx.fillStyle = '#FF6347';
+                ctx.beginPath();
+                ctx.ellipse(this.x + 8, this.y + 20, 5, 8, -0.3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(this.x + 22, this.y + 20, 5, 8, 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        };
+
+        // Pipe object
+        class Pipe {
+            constructor() {
+                this.width = 50;
+                this.gap = 150;
+                this.x = canvas.width;
+                this.topHeight = Math.random() * (canvas.height - this.gap - 60) + 30;
+                this.scored = false;
+            }
+
+            update() {
+                this.x -= 5;
+            }
+
+            draw() {
+                // Top pipe
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(this.x, 0, this.width, this.topHeight);
+
+                // Pipe cap
+                ctx.fillStyle = '#1a6b1a';
+                ctx.fillRect(this.x - 3, this.topHeight - 8, this.width + 6, 8);
+
+                // Bottom pipe
+                const bottomPipeY = this.topHeight + this.gap;
+                ctx.fillStyle = '#228B22';
+                ctx.fillRect(this.x, bottomPipeY, this.width, canvas.height - bottomPipeY);
+
+                // Pipe cap
+                ctx.fillStyle = '#1a6b1a';
+                ctx.fillRect(this.x - 3, bottomPipeY, this.width + 6, 8);
+            }
+
+            collidesWith(owl) {
+                // Check if owl hits top or bottom pipe
+                if (owl.x + owl.width > this.x && owl.x < this.x + this.width) {
+                    if (owl.y < this.topHeight || owl.y + owl.height > this.topHeight + this.gap) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        }
+
+        let pipes = [];
+        let frameCount = 0;
+
+        // Input handling
+        document.addEventListener('click', () => {
+            if (gameRunning) {
+                owl.flap();
+            }
+        });
+
+        document.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameRunning) {
+                owl.flap();
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameRunning) {
+                    owl.flap();
+                }
+            }
+        });
+
+        function endGame() {
+            gameRunning = false;
+            document.getElementById('gameOver').style.display = 'block';
+            document.getElementById('finalScore').textContent = score;
+        }
+
+        function gameLoop() {
+            // Clear canvas
+            ctx.fillStyle = 'rgba(135, 206, 235, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update and draw owl
+            owl.update();
+            owl.draw();
+
+            // Create pipes
+            frameCount++;
+            if (frameCount % 100 === 0) {
+                pipes.push(new Pipe());
+            }
+
+            // Update and draw pipes
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].update();
+                pipes[i].draw();
+
+                // Scoring
+                if (pipes[i].x + pipes[i].width < owl.x && !pipes[i].scored) {
+                    pipes[i].scored = true;
+                    score++;
+                    document.getElementById('score').textContent = 'Score: ' + score;
+                }
+
+                // Collision detection
+                if (pipes[i].collidesWith(owl)) {
+                    endGame();
+                }
+
+                // Remove off-screen pipes
+                if (pipes[i].x + pipes[i].width < 0) {
+                    pipes.splice(i, 1);
+                }
+            }
+
+            if (gameRunning) {
+                requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // Start game
+        gameLoop();
+    </script>
+</body>
+</html>

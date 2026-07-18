@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cornerstone Maze Runner</title>
+  <style>
+    :root {
+      --bg: #12002f;
+      --panel: #1d0646;
+      --wall: #7c3aed;
+      --wall-glow: #a78bfa;
+      --dot: #fef3c7;
+      --player: #facc15;
+      --player-mouth: #12002f;
+      --ghost-a: #22d3ee;
+      --ghost-b: #f472b6;
+      --ghost-c: #34d399;
+      --text: #ffffff;
+      --accent: #f97316;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at top left, rgba(124, 58, 237, 0.45), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.25), transparent 35%),
+        var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+
+    .app {
+      width: min(1080px, 100%);
+      display: grid;
+      grid-template-columns: 1fr 320px;
+      gap: 20px;
+      align-items: start;
+    }
+
+    .game-card, .side-card {
+      background: rgba(29, 6, 70, 0.86);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 24px;
+      box-shadow: 0 22px 70px rgba(0,0,0,0.35);
+      padding: 18px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: #ddd6fe;
+      font-size: 0.98rem;
+    }
+
+    .stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: end;
+    }
+
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.12);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    canvas {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      display: block;
+      background: #050015;
+      border-radius: 18px;
+      border: 3px solid rgba(255,255,255,0.12);
+    }
+
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(3, 58px);
+      gap: 8px;
+      justify-content: center;
+      margin-top: 14px;
+    }
+
+    .controls button, .primary-button {
+      border: none;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--accent), #facc15);
+      color: #1b0b00;
+      font-size: 1.1rem;
+      font-weight: 900;
+      padding: 12px;
+      cursor: pointer;
+      box-shadow: 0 8px 20px rgba(249, 115, 22, 0.28);
+    }
+
+    .controls .blank {
+      visibility: hidden;
+    }
+
+    .primary-button {
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    .side-card h2 {
+      margin: 0 0 10px;
+      font-size: 1.2rem;
+    }
+
+    .side-card p, .side-card li {
+      color: #e9d5ff;
+      line-height: 1.45;
+    }
+
+    .side-card ul {
+      padding-left: 20px;
+    }
+
+    code {
+      background: rgba(255,255,255,0.12);
+      padding: 2px 6px;
+      border-radius: 7px;
+      color: #fde68a;
+    }
+
+    .message {
+      margin-top: 12px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.09);
+      color: #fef3c7;
+      min-height: 48px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 880px) {
+      .app { grid-template-columns: 1fr; }
+      .stats { justify-content: start; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="game-card">
+      <header>
+        <div>
+          <h1>Cornerstone Maze Runner</h1>
+          <p class="subtitle">Collect the dots. Dodge the bugs. Learn how code changes the game.</p>
+        </div>
+        <div class="stats">
+          <div class="pill">Score: <span id="score">0</span></div>
+          <div class="pill">Lives: <span id="lives">3</span></div>
+          <div class="pill">Level: <span id="level">1</span></div>
+        </div>
+      </header>
+
+      <canvas id="game" width="600" height="600" aria-label="Maze game"></canvas>
+
+      <div class="controls" aria-label="Touch controls">
+        <button class="blank">.</button>
+        <button data-dir="up">▲</button>
+        <button class="blank">.</button>
+        <button data-dir="left">◀</button>
+        <button data-dir="down">▼</button>
+        <button data-dir="right">▶</button>
+      </div>
+      <button class="primary-button" id="restart">Restart Game</button>
+      <div class="message" id="message">Use arrow keys, WASD, or the buttons. Can you beat the bugs?</div>
+    </section>
+
+    <aside class="side-card">
+      <h2>Program This Game</h2>
+      <p>Students can open this file in VS Code and change the game live.</p>
+      <ul>
+        <li>Change <code>PLAYER_SPEED</code> to make the hero faster.</li>
+        <li>Change <code>GHOST_SPEED</code> to make the bugs easier or harder.</li>
+        <li>Edit <code>GAME_MAP</code> to design a new maze.</li>
+        <li>Change colors in <code>:root</code> to match your own style.</li>
+        <li>Change messages in <code>winMessages</code>.</li>
+      </ul>
+      <p><strong>Map key:</strong> <code>#</code> wall, <code>.</code> dot, <code>o</code> power dot, <code>P</code> player, <code>G</code> bug.</p>
+    </aside>
+  </main>
+
+  <script>
+    // =====================================================
+    // STUDENT CHALLENGE ZONE
+    // Change these values and refresh the browser.
+    // =====================================================
+    const PLAYER_SPEED = 3;
+    const GHOST_SPEED = 1.05;
+    const POWER_TIME_MS = 6500;
+    const DOT_POINTS = 10;
+    const POWER_DOT_POINTS = 50;
+    const BUG_POINTS = 200;
+
+    const winMessages = [
+      "Level complete! You debugged the maze!",
+      "Nice work! You turned code into something playable.",
+      "Great job! Now try changing the map or speeds.",
+      "You built skills by playing with code."
+    ];
+
+    const GAME_MAP = [
+      "###################",
+      "#P.......#.......G#",
+      "#.###.###.#.###.###",
+      "#o#.....#.#.#.....#",
+      "#.#.###.#.#.#.###.#",
+      "#.....#.....#.....#",
+      "###.#.#######.#.###",
+      "#...#....G....#...#",
+      "#.#####.###.#####.#",
+      "#.......#.#.......#",
+      "#.#####.#.#.#####.#",
+      "#...#....G....#...#",
+      "###.#.#######.#.###",
+      "#.....#.....#.....#",
+      "#.#.###.#.#.#.###.#",
+      "#o#.....#.#.#.....#",
+      "#.###.###.#.###.###",
+      "#G.......#........#",
+      "###################"
+    ];
+
+    // =====================================================
+    // GAME ENGINE
+    // =====================================================
+    const canvas = document.getElementById("game");
+    const ctx = canvas.getContext("2d");
+    const scoreEl = document.getElementById("score");
+    const livesEl = document.getElementById("lives");
+    const levelEl = document.getElementById("level");
+    const messageEl = document.getElementById("message");
+    const restartBtn = document.getElementById("restart");
+
+    const rows = GAME_MAP.length;
+    const cols = GAME_MAP[0].length;
+    const tile = canvas.width / cols;
+
+    let walls = [];
+    let dots = [];
+    let powerDots = [];
+    let ghosts = [];
+    let player;
+    let score = 0;
+    let lives = 3;
+    let level = 1;
+    let powerModeUntil = 0;
+    let gameOver = false;
+    let gameWon = false;
+    let mouthTick = 0;
+
+    const dirs = {
+      up: { x: 0, y: -1 },
+      down: { x: 0, y: 1 },
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 }
+    };
+
+    function centerOf(col, row) {
+      return { x: col * tile + tile / 2, y: row * tile + tile / 2 };
+    }
+
+    function parseMap(resetScore = true) {
+      walls = [];
+      dots = [];
+      powerDots = [];
+      ghosts = [];
+      gameOver = false;
+      gameWon = false;
+      powerModeUntil = 0;
+
+      if (resetScore) {
+        score = 0;
+        lives = 3;
+        level = 1;
+      }
+
+      GAME_MAP.forEach((line, row) => {
+        [...line].forEach((cell, col) => {
+          const c = centerOf(col, row);
+          if (cell === "#") walls.push({ col, row });
+          if (cell === ".") dots.push({ col, row, x: c.x, y: c.y });
+          if (cell === "o") powerDots.push({ col, row, x: c.x, y: c.y });
+          if (cell === "P") player = { x: c.x, y: c.y, dir: dirs.right, nextDir: dirs.right, start: c };
+          if (cell === "G") ghosts.push({ x: c.x, y: c.y, dir: randomDir(), start: c, colorIndex: ghosts.length });
+        });
+      });
+
+      updateStats();
+      messageEl.textContent = "Use arrow keys, WASD, or the buttons. Can you beat the bugs?";
+    }
+
+    function updateStats() {
+      scoreEl.textContent = score;
+      livesEl.textContent = lives;
+      levelEl.textContent = level;
+    }
+
+    function tileAt(x, y) {
+      return {
+        col: Math.floor(x / tile),
+        row: Math.floor(y / tile)
+      };
+    }
+
+    function isWall(col, row) {
+      return walls.some(w => w.col === col && w.row === row);
+    }
+
+    function canMove(entity, dir, speed) {
+      const radius = tile * 0.34;
+      const nextX = entity.x + dir.x * speed;
+      const nextY = entity.y + dir.y * speed;
+      const checks = [
+        tileAt(nextX - radius, nextY - radius),
+        tileAt(nextX + radius, nextY - radius),
+        tileAt(nextX - radius, nextY + radius),
+        tileAt(nextX + radius, nextY + radius)
+      ];
+      return checks.every(p => !isWall(p.col, p.row));
+    }
+
+    function moveEntity(entity, speed) {
+      if (entity.nextDir && canMove(entity, entity.nextDir, speed)) {
+        entity.dir = entity.nextDir;
+      }
+      if (canMove(entity, entity.dir, speed)) {
+        entity.x += entity.dir.x * speed;
+        entity.y += entity.dir.y * speed;
+      }
+    }
+
+    function randomDir() {
+      const keys = Object.keys(dirs);
+      return dirs[keys[Math.floor(Math.random() * keys.length)]];
+    }
+
+    function maybeTurnGhost(ghost) {
+      const nearCenterX = Math.abs((ghost.x % tile) - tile / 2) < GHOST_SPEED + 1;
+      const nearCenterY = Math.abs((ghost.y % tile) - tile / 2) < GHOST_SPEED + 1;
+      const blocked = !canMove(ghost, ghost.dir, GHOST_SPEED);
+
+      // If the ghost is blocked, snap it back to the center of its current tile.
+      // This prevents it from getting stuck slightly inside a wall edge.
+      if (blocked) {
+        const pos = tileAt(ghost.x, ghost.y);
+        const center = centerOf(pos.col, pos.row);
+        ghost.x = center.x;
+        ghost.y = center.y;
+      }
+
+      // Only choose a new turn when near a tile center or when blocked.
+      if (!blocked && (!nearCenterX || !nearCenterY)) return;
+
+      const options = Object.values(dirs).filter(d => canMove(ghost, d, GHOST_SPEED));
+      if (options.length === 0) return;
+
+      const reverse = { x: -ghost.dir.x, y: -ghost.dir.y };
+      const filtered = options.filter(d => !(d.x === reverse.x && d.y === reverse.y));
+      const choices = filtered.length ? filtered : options;
+
+      // A little chase behavior when not in power mode.
+      if (!isPowerMode() && Math.random() < 0.45) {
+        choices.sort((a, b) => {
+          const ax = ghost.x + a.x * tile - player.x;
+          const ay = ghost.y + a.y * tile - player.y;
+          const bx = ghost.x + b.x * tile - player.x;
+          const by = ghost.y + b.y * tile - player.y;
+          return (ax * ax + ay * ay) - (bx * bx + by * by);
+        });
+        ghost.dir = choices[0];
+      } else {
+        ghost.dir = choices[Math.floor(Math.random() * choices.length)];
+      }
+    }
+
+    function distance(a, b) {
+      return Math.hypot(a.x - b.x, a.y - b.y);
+    }
+
+    function eatDots() {
+      dots = dots.filter(dot => {
+        if (distance(player, dot) < tile * 0.35) {
+          score += DOT_POINTS;
+          return false;
+        }
+        return true;
+      });
+
+      powerDots = powerDots.filter(dot => {
+        if (distance(player, dot) < tile * 0.42) {
+          score += POWER_DOT_POINTS;
+          powerModeUntil = Date.now() + POWER_TIME_MS;
+          messageEl.textContent = "Power mode! Catch the bugs for bonus points!";
+          return false;
+        }
+        return true;
+      });
+
+      if (dots.length === 0 && powerDots.length === 0) {
+        level += 1;
+        score += 500;
+        messageEl.textContent = winMessages[Math.floor(Math.random() * winMessages.length)];
+        resetPositions();
+        dots = [];
+        powerDots = [];
+        GAME_MAP.forEach((line, row) => {
+          [...line].forEach((cell, col) => {
+            const c = centerOf(col, row);
+            if (cell === ".") dots.push({ col, row, x: c.x, y: c.y });
+            if (cell === "o") powerDots.push({ col, row, x: c.x, y: c.y });
+          });
+        });
+      }
+    }
+
+    function checkGhostCollisions() {
+      ghosts.forEach(ghost => {
+        if (distance(player, ghost) < tile * 0.6) {
+          if (isPowerMode()) {
+            score += BUG_POINTS;
+            ghost.x = ghost.start.x;
+            ghost.y = ghost.start.y;
+            ghost.dir = randomDir();
+            messageEl.textContent = "Bug caught! Bonus points!";
+          } else {
+            lives -= 1;
+            messageEl.textContent = lives > 0 ? "Ouch! Try again." : "Game over. Restart and debug your strategy!";
+            if (lives <= 0) gameOver = true;
+            resetPositions();
+          }
+        }
+      });
+    }
+
+    function resetPositions() {
+      player.x = player.start.x;
+      player.y = player.start.y;
+      player.dir = dirs.right;
+      player.nextDir = dirs.right;
+      ghosts.forEach(ghost => {
+        ghost.x = ghost.start.x;
+        ghost.y = ghost.start.y;
+        ghost.dir = randomDir();
+      });
+      powerModeUntil = 0;
+    }
+
+    function isPowerMode() {
+      return Date.now() < powerModeUntil;
+    }
+
+    function drawRoundedRect(x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Grid glow background
+      ctx.fillStyle = "#050015";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Walls
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--wall");
+      ctx.shadowColor = getComputedStyle(document.documentElement).getPropertyValue("--wall-glow");
+      ctx.shadowBlur = 12;
+      walls.forEach(w => {
+        drawRoundedRect(w.col * tile + 2, w.row * tile + 2, tile - 4, tile - 4, 7);
+      });
+      ctx.shadowBlur = 0;
+
+      // Dots
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--dot");
+      dots.forEach(dot => {
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, tile * 0.08, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      powerDots.forEach(dot => {
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, tile * 0.18 + Math.sin(Date.now() / 120) * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Player (Atlas - improved hoodie/owl look)
+      const size = tile * 0.75;
+
+      // Hoodie body (slightly oval for shape)
+      ctx.fillStyle = "#000000";
+      ctx.beginPath();
+      ctx.ellipse(player.x, player.y + size * 0.05, size * 0.5, size * 0.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head (separate from body for better definition)
+      ctx.fillStyle = "#16a34a";
+      ctx.beginPath();
+      ctx.arc(player.x, player.y - size * 0.15, size * 0.32, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Hoodie hood outline
+      ctx.strokeStyle = "#9333ea";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(player.x, player.y - size * 0.15, size * 0.38, 0.2, Math.PI - 0.2);
+      ctx.stroke();
+
+      // Eyes (bigger + more owl-like)
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(player.x - size * 0.12, player.y - size * 0.2, size * 0.12, 0, Math.PI * 2);
+      ctx.arc(player.x + size * 0.12, player.y - size * 0.2, size * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupils (slightly dire
+
+      // Face (owl-like)
+      ctx.fillStyle = "#16a34a"; // green face
+      ctx.beginPath();
+      ctx.arc(player.x, player.y, size / 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Eyes
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(player.x - size * 0.15, player.y - size * 0.1, size * 0.12, 0, Math.PI * 2);
+      ctx.arc(player.x + size * 0.15, player.y - size * 0.1, size * 0.12, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "black";
+      ctx.beginPath();
+      ctx.arc(player.x - size * 0.15, player.y - size * 0.1, size * 0.06, 0, Math.PI * 2);
+      ctx.arc(player.x + size * 0.15, player.y - size * 0.1, size * 0.06, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Beak
+      ctx.fillStyle = "#facc15";
+      ctx.beginPath();
+      ctx.moveTo(player.x, player.y);
+      ctx.lineTo(player.x - size * 0.1, player.y + size * 0.1);
+      ctx.lineTo(player.x + size * 0.1, player.y + size * 0.1);
+      ctx.closePath();
+      ctx.fill();
+
+      // Ghosts / bugs
+      const ghostColors = ["--ghost-a", "--ghost-b", "--ghost-c"];
+      ghosts.forEach(ghost => {
+        const colorVar = isPowerMode() ? "--wall-glow" : ghostColors[ghost.colorIndex % ghostColors.length];
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue(colorVar);
+        ctx.beginPath();
+        ctx.arc(ghost.x, ghost.y - tile * 0.06, tile * 0.30, Math.PI, 0);
+        ctx.lineTo(ghost.x + tile * 0.30, ghost.y + tile * 0.28);
+        ctx.lineTo(ghost.x + tile * 0.15, ghost.y + tile * 0.16);
+        ctx.lineTo(ghost.x, ghost.y + tile * 0.28);
+        ctx.lineTo(ghost.x - tile * 0.15, ghost.y + tile * 0.16);
+        ctx.lineTo(ghost.x - tile * 0.30, ghost.y + tile * 0.28);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = "white";
+        ctx.beginPath();
+        ctx.arc(ghost.x - tile * 0.11, ghost.y - tile * 0.06, tile * 0.07, 0, Math.PI * 2);
+        ctx.arc(ghost.x + tile * 0.11, ghost.y - tile * 0.06, tile * 0.07, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#111827";
+        ctx.beginPath();
+        ctx.arc(ghost.x - tile * 0.09, ghost.y - tile * 0.04, tile * 0.035, 0, Math.PI * 2);
+        ctx.arc(ghost.x + tile * 0.13, ghost.y - tile * 0.04, tile * 0.035, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      if (gameOver) {
+        ctx.fillStyle = "rgba(0,0,0,0.68)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "white";
+        ctx.textAlign = "center";
+        ctx.font = "900 46px system-ui";
+        ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 12);
+        ctx.font = "700 22px system-ui";
+        ctx.fillText("Press Restart to play again", canvas.width / 2, canvas.height / 2 + 28);
+      }
+    }
+
+    function update() {
+      if (!gameOver) {
+        moveEntity(player, PLAYER_SPEED);
+        ghosts.forEach(ghost => {
+          maybeTurnGhost(ghost);
+          moveEntity(ghost, GHOST_SPEED + Math.min(level - 1, 4) * 0.25);
+        });
+        eatDots();
+        checkGhostCollisions();
+        updateStats();
+      }
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function setDirection(name) {
+      if (dirs[name]) player.nextDir = dirs[name];
+    }
+
+    window.addEventListener("keydown", event => {
+      const keyMap = {
+        ArrowUp: "up",
+        ArrowDown: "down",
+        ArrowLeft: "left",
+        ArrowRight: "right",
+        w: "up",
+        s: "down",
+        a: "left",
+        d: "right",
+        W: "up",
+        S: "down",
+        A: "left",
+        D: "right"
+      };
+      if (keyMap[event.key]) {
+        event.preventDefault();
+        setDirection(keyMap[event.key]);
+      }
+    });
+
+    document.querySelectorAll("[data-dir]").forEach(button => {
+      button.addEventListener("click", () => setDirection(button.dataset.dir));
+    });
+
+    restartBtn.addEventListener("click", () => parseMap(true));
+
+    parseMap(true);
+    update();
+  </script>
+</body>
+</html>
